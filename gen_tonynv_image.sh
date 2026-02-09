@@ -95,9 +95,6 @@ parse_args() {
 
     if [[ -z "$PASSWD" ]]; then
         PASSWD="$(openssl rand -base64 12)"
-        GENERATED_PASSWD=true
-    else
-        GENERATED_PASSWD=false
     fi
 
     if [[ "$USE_BOOTSTRAP" == true && ! -f "${SCRIPT_DIR}/tonynv.userdata" ]]; then
@@ -305,11 +302,9 @@ main() {
     echo "==========================================="
     echo " Image ready: ${output_path}"
     echo "==========================================="
-    if [[ "$GENERATED_PASSWD" == true ]]; then
-        echo ""
-        echo " Generated password: ${PASSWD}"
-        echo " (applies to both root and tonynv users)"
-    fi
+    echo ""
+    echo " Password: ${PASSWD}"
+    echo " (applies to both root and tonynv users)"
     echo ""
     echo " Boot with QEMU:"
     echo "   qemu-system-x86_64 -m 2048 -nographic \\"
