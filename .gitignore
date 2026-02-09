@@ -1,0 +1,4 @@
+output/
+.cache/
+*.qcow2
+*.img
