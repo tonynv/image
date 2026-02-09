@@ -25,13 +25,13 @@ CACHE_DIR="${SCRIPT_DIR}/.cache"
 declare -A IMAGE_URLS=(
     ["debian13"]="https://cloud.debian.org/images/cloud/trixie/latest/debian-13-generic-amd64.qcow2"
     ["ubuntu2404"]="https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
-    ["fedora41"]="https://download.fedoraproject.org/pub/fedora/linux/releases/41/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-41-1.4.x86_64.qcow2"
+    ["fedora43"]="https://download.fedoraproject.org/pub/fedora/linux/releases/43/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-43-1.6.x86_64.qcow2"
 )
 
 declare -A DISTRO_LABELS=(
     ["debian13"]="Debian 13 (Trixie)"
     ["ubuntu2404"]="Ubuntu 24.04 LTS (Noble)"
-    ["fedora41"]="Fedora 41"
+    ["fedora43"]="Fedora 43"
 )
 
 # --- Functions ---
@@ -44,7 +44,7 @@ Generate a customized cloud image with tonynv user and dotfiles setup.
 
 Options:
   --distro <distro>   Target distro (default: debian13)
-                      Supported: debian13, ubuntu2404, fedora41
+                      Supported: debian13, ubuntu2404, fedora43
   --passwd <password> Password for root and tonynv users
                       (generated randomly if not provided)
   --bootstrap         Include tonynv.userdata file as additional
@@ -54,7 +54,7 @@ Options:
 Examples:
   ./gen_tonynv_image.sh --passwd mypassword
   ./gen_tonynv_image.sh --distro ubuntu2404 --passwd mypassword
-  ./gen_tonynv_image.sh --distro fedora41 --passwd mypassword --bootstrap
+  ./gen_tonynv_image.sh --distro fedora43 --passwd mypassword --bootstrap
 EOF
 }
 
