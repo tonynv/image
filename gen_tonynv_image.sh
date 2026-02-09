@@ -106,6 +106,23 @@ parse_args() {
     fi
 }
 
+install_deps() {
+    echo "  Detecting package manager..."
+
+    if command -v apt-get &>/dev/null; then
+        echo "  Installing dependencies via apt..."
+        sudo apt-get update -qq
+        sudo apt-get install -y libguestfs-tools wget openssl
+    elif command -v dnf &>/dev/null; then
+        echo "  Installing dependencies via dnf..."
+        sudo dnf install -y guestfs-tools wget openssl
+    else
+        echo "Error: Unsupported package manager. Install manually:"
+        echo "  virt-customize, wget, openssl"
+        exit 1
+    fi
+}
+
 check_deps() {
     local missing=()
     for cmd in virt-customize wget openssl; do
@@ -115,12 +132,17 @@ check_deps() {
     done
 
     if [[ ${#missing[@]} -gt 0 ]]; then
-        echo "Error: Missing required tools: ${missing[*]}"
-        echo ""
-        echo "Install with:"
-        echo "  Debian/Ubuntu: sudo apt install libguestfs-tools wget openssl"
-        echo "  Fedora:        sudo dnf install guestfs-tools wget openssl"
-        exit 1
+        echo "  Missing tools: ${missing[*]}"
+        install_deps
+
+        # Verify installation succeeded
+        for cmd in virt-customize wget openssl; do
+            if ! command -v "$cmd" &>/dev/null; then
+                echo "Error: Failed to install ${cmd}"
+                exit 1
+            fi
+        done
+        echo "  All dependencies installed successfully."
     fi
 }
 
