@@ -192,6 +192,18 @@ packages:
   - curl
   - zsh
 
+write_files:
+  - path: /etc/issue
+    content: |
+      Built with https://github.com/tonynv/image
+      \S \r (\l)
+
+  - path: /etc/motd
+    content: |
+      =========================================
+       Built with https://github.com/tonynv/image
+      =========================================
+
 runcmd:
   - |
     # Clone dotfiles and run setup for root
