@@ -21,7 +21,6 @@ OUTPUT_DIR="${SCRIPT_DIR}/output"
 CACHE_DIR="${SCRIPT_DIR}/.cache"
 
 # --- Official cloud image URLs ---
-# Update these URLs as new releases become available.
 declare -A IMAGE_URLS=(
     ["debian13"]="https://cloud.debian.org/images/cloud/trixie/latest/debian-13-generic-amd64.qcow2"
     ["ubuntu2404"]="https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
@@ -48,13 +47,14 @@ Options:
   --passwd <password> Password for root and tonynv users
                       (generated randomly if not provided)
   --bootstrap         Include tonynv.userdata file as additional
-                      cloud-init runcmd content
+                      cloud-init content
   -h, --help          Show this help message
 
 Examples:
+  ./gen_tonynv_image.sh
   ./gen_tonynv_image.sh --passwd mypassword
   ./gen_tonynv_image.sh --distro ubuntu2404 --passwd mypassword
-  ./gen_tonynv_image.sh --distro fedora43 --passwd mypassword --bootstrap
+  ./gen_tonynv_image.sh --distro fedora43 --bootstrap
 EOF
 }
 
