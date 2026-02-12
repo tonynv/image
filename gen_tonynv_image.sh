@@ -147,19 +147,17 @@ download_image() {
     local url="${IMAGE_URLS[$DISTRO]}"
     local filename
     filename="$(basename "$url")"
-    local cached="${CACHE_DIR}/${filename}"
+    CACHED_IMAGE="${CACHE_DIR}/${filename}"
 
     mkdir -p "$CACHE_DIR"
 
-    if [[ -f "$cached" ]]; then
+    if [[ -f "$CACHED_IMAGE" ]]; then
         echo "  Using cached image: ${filename}"
     else
         echo "  Downloading ${DISTRO_LABELS[$DISTRO]} cloud image..."
         echo "  URL: ${url}"
-        wget -q --show-progress -O "$cached" "$url"
+        wget -q --show-progress -O "$CACHED_IMAGE" "$url"
     fi
-
-    echo "$cached"
 }
 
 build_cloud_config() {
@@ -203,6 +201,24 @@ write_files:
 
 runcmd:
   - |
+    # Enable serial console (grub + getty)
+    if command -v grub2-mkconfig >/dev/null 2>&1; then
+      GRUB_CFG="/etc/default/grub"
+      sed -i 's/^GRUB_TERMINAL_OUTPUT=.*/GRUB_TERMINAL="serial console"/' "\$GRUB_CFG"
+      grep -q '^GRUB_TERMINAL=' "\$GRUB_CFG" || echo 'GRUB_TERMINAL="serial console"' >> "\$GRUB_CFG"
+      grep -q '^GRUB_SERIAL_COMMAND=' "\$GRUB_CFG" || echo 'GRUB_SERIAL_COMMAND="serial --speed=115200 --unit=0 --word=8 --parity=no --stop=1"' >> "\$GRUB_CFG"
+      sed -i 's/^GRUB_CMDLINE_LINUX="\(.*\)"/GRUB_CMDLINE_LINUX="\1 console=tty0 console=ttyS0,115200n8"/' "\$GRUB_CFG"
+      grub2-mkconfig -o /boot/grub2/grub.cfg
+    elif command -v update-grub >/dev/null 2>&1; then
+      GRUB_CFG="/etc/default/grub"
+      sed -i 's/^GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT="console=tty0 console=ttyS0,115200n8"/' "\$GRUB_CFG"
+      grep -q '^GRUB_TERMINAL=' "\$GRUB_CFG" || echo 'GRUB_TERMINAL="serial console"' >> "\$GRUB_CFG"
+      grep -q '^GRUB_SERIAL_COMMAND=' "\$GRUB_CFG" || echo 'GRUB_SERIAL_COMMAND="serial --speed=115200 --unit=0 --word=8 --parity=no --stop=1"' >> "\$GRUB_CFG"
+      update-grub
+    fi
+    systemctl enable serial-getty@ttyS0.service
+    systemctl start serial-getty@ttyS0.service || true
+  - |
     # Clone dotfiles and run setup for root
     cd /root
     git clone https://github.com/tonynv/dotfiles.git
@@ -237,18 +253,17 @@ CLOUDEOF
 customize_image() {
     local src_image="$1"
     local cloud_config="$2"
-    local output_name="tonynv-${DISTRO}.qcow2"
-    local output_path="${OUTPUT_DIR}/${output_name}"
+    OUTPUT_IMAGE="${OUTPUT_DIR}/tonynv-${DISTRO}.qcow2"
 
     mkdir -p "$OUTPUT_DIR"
 
     echo "  Copying base image..."
-    cp "$src_image" "$output_path"
+    cp "$src_image" "$OUTPUT_IMAGE"
 
     echo "  Injecting cloud-init configuration..."
 
     local customize_args=(
-        -a "$output_path"
+        -a "$OUTPUT_IMAGE"
         --mkdir /var/lib/cloud/seed/nocloud
         --upload "${cloud_config}:/var/lib/cloud/seed/nocloud/user-data"
         --write "/var/lib/cloud/seed/nocloud/meta-data:instance-id: iid-tonynv-template\nlocal-hostname: tonynv\n"
@@ -261,8 +276,6 @@ customize_image() {
     fi
 
     virt-customize "${customize_args[@]}"
-
-    echo "$output_path"
 }
 
 # --- Main ---
@@ -281,39 +294,46 @@ main() {
     echo ""
 
     echo "[1/3] Downloading base image..."
-    local cached_image
-    cached_image="$(download_image)"
+    download_image
     echo ""
 
     echo "[2/3] Building cloud-init config..."
-    local tmpdir
-    tmpdir="$(mktemp -d)"
-    trap 'rm -rf "$tmpdir"' EXIT
+    TMPDIR_CLEANUP="$(mktemp -d)"
+    trap 'rm -rf "$TMPDIR_CLEANUP"' EXIT
 
-    local cloud_config="${tmpdir}/user-data"
+    local cloud_config="${TMPDIR_CLEANUP}/user-data"
     build_cloud_config "$cloud_config"
     echo ""
 
     echo "[3/3] Customizing image..."
-    local output_path
-    output_path="$(customize_image "$cached_image" "$cloud_config")"
+    customize_image "$CACHED_IMAGE" "$cloud_config"
     echo ""
 
     echo "==========================================="
-    echo " Image ready: ${output_path}"
+    echo " Image ready: ${OUTPUT_IMAGE}"
     echo "==========================================="
     echo ""
     echo " Password: ${PASSWD}"
     echo " (applies to both root and tonynv users)"
     echo ""
     echo " Boot with QEMU:"
-    echo "   qemu-system-x86_64 -m 2048 -nographic \\"
-    echo "     -drive file=${output_path},format=qcow2"
+    echo "   qemu-system-x86_64 -machine q35 -m 1024 -smp 2 \\"
+    echo "     -enable-kvm -cpu host -nographic \\"
+    echo "     -drive file=${OUTPUT_IMAGE},format=qcow2,if=virtio \\"
+    echo "     -nic bridge,br=br-vlan200,model=virtio \\"
+    echo "     -object rng-random,filename=/dev/urandom,id=rng0 \\"
+    echo "     -device virtio-rng-pci,rng=rng0"
     echo ""
     echo " Import to libvirt:"
-    echo "   virt-install --name tonynv-vm --ram 2048 --vcpus 2 \\"
-    echo "     --disk path=${output_path},format=qcow2 \\"
-    echo "     --import --os-variant generic --noautoconsole"
+    echo "   virt-install --name tonynv-vm --ram 1024 --vcpus 2 \\"
+    echo "     --machine q35 \\"
+    echo "     --disk path=${OUTPUT_IMAGE},format=qcow2,bus=virtio \\"
+    echo "     --network bridge=br-vlan200,model=virtio \\"
+    echo "     --graphics none \\"
+    echo "     --console pty,target_type=serial \\"
+    echo "     --rng /dev/urandom \\"
+    echo "     --tpm default \\"
+    echo "     --import --os-variant detect=on"
     echo ""
 }
 
